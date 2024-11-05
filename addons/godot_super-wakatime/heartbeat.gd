@@ -1,4 +1,6 @@
-﻿var file_path
+const FILE_MODIFIED_DELAY = 120
+
+var file_path
 var entity
 var type
 var category
@@ -13,6 +15,6 @@ var language
 var project
 
 func _init(file_path = '', time = 0, is_write = false):
-    self.file_path = file_path
-    self.time = time
-    self.is_write = is_write
+	self.file_path = file_path
+	self.time = time
+	self.is_write = is_write

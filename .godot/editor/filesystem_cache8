@@ -1,3 +1,10 @@
 ea4bc82a6ad023ab7ee23ee620429895
-::res://::1730494617
+::res://::1730841651
 icon.svg::CompressedTexture2D::987775935465999014::1730494610::1730494619::1::::<><>::
+::res://addons/::1730495923
+::res://addons/godot_super-wakatime/::1730841491
+decompressor.gd::GDScript::-1::1730651906::0::1::::<>RefCounted<>::
+godot_super-wakatime.gd::GDScript::-1::1730841491::0::1::::<>EditorPlugin<>::
+heartbeat.gd::GDScript::-1::1730497506::0::1::::<>RefCounted<>::
+plugin.cfg::TextFile::-1::1730495923::0::1::::<><>::
+utils.gd::GDScript::-1::1730652220::0::1::::<>RefCounted<>::
