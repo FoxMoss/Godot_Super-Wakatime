@@ -113,74 +113,80 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 		Utils.plugin_print("Failed to get Wakatime API key")
 		return
 		
+	print(get_user_agent())
+		
 	# Create heartbeat
 	var heartbeat = HeartBeat.new(filepath, Time.get_unix_time_from_system(), is_write)
 	
 	# Current text editor
-	var script_editor = get_editor_interface().get_script_editor()
 	var text_editor = _find_active_script_editor()
-	print("Text editor", text_editor)
-	_get_cursor_pos(text_editor)
+	var cursor_pos = _get_cursor_pos(text_editor)
 	
 	
 	# Append all informations as Wakatime CLI arguments
-	var cmd: Array[Variant] = ["--entity", heartbeat.file_path, "--key", api_key, "--plugin", 
-		get_user_agent()]
+	var cmd: Array[Variant] = ["--entity", heartbeat.file_path, "--key", api_key]
 	if is_write:
 		cmd.append("--write")
-	cmd.append("--project")
-	cmd.append(ProjectSettings.get("application/config/name"))
-	#cmd.append_array(["--lineno", ])
+	cmd.append(["--project", ProjectSettings.get("application/config/name")])
+	cmd.append(["--time", str(heartbeat.time)])
+	cmd.append_array(["--lineno", str(cursor_pos.line)])
+	cmd.append_array(["--cursorpos", str(cursor_pos.column)])
+	cmd.append_array(["--plugin", get_user_agent()])
 	
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
-	
-	Utils.plugin_print("----- Info ------")
-	Utils.plugin_print("Project: %s" % ProjectSettings.get("application/config/name"))
-	Utils.plugin_print("Entity: %s" % heartbeat.file_path)
-	Utils.plugin_print("Plugin: %s" % get_user_agent())
-	Utils.plugin_print("")
 	
 	WorkerThreadPool.add_task(cmd_callable)
 	last_heartbeat = heartbeat
 	
 func _find_active_script_editor() -> CodeEdit:
+	"""Return currently used script editor"""
+	# Get script editor
 	var script_editor = get_editor_interface().get_script_editor()
 	var tabs = script_editor.get_current_editor()
+	# Try to find code editor from it
 	if tabs:
 		return _find_code_edit_recursive(tabs)
 	return null
 
 func _find_code_edit_recursive(node: Node) -> CodeEdit:
+	"""Find recursively code editor in a node"""
+	# If node is already a code editor, return it
 	if node is CodeEdit:
 		return node
-		
+
+	# Try to find it in every child of a given node		
 	for child in node.get_children():
-		var editor = _find_text_editor(child)
+		var editor = _find_code_edit_recursive(child)
 		if editor:
 			return editor
 	return null
 	
-func _find_text_editor(node):
-	if node is CodeEdit and node.visible:
-		return node
-	for child in node.get_children():
-		var potential = _find_text_editor(child)
-		if potential:
-			return potential
-	return null
-	
-func _get_cursor_pos(text_editor):
-	if text_editor is CodeEdit:
+func _get_cursor_pos(text_editor) -> Dictionary:
+	"""Get cursor editor from the given text editor"""
+	if text_editor:
 		print("line: ", text_editor.get_caret_line() + 1)
 		print("column: ", text_editor.get_caret_column() + 1)
+		
+		return {
+			"line": text_editor.get_caret_line() + 1,
+			"column": text_editor.get_caret_column() + 1
+		}
+		
+	return {
+		"line": 0,
+		"column": 0
+	}
 	
 func _handle_heartbeat(cmd_arguments) -> void:
+	"""Handle sending the heartbeat"""
+	# Get Wakatime CLI and try to send a heartbeat
 	if wakatime_cli == null:
 		wakatime_cli = Utils.get_waka_cli()
 		
 	var output: Array[Variant] = []
 	var exit_code: int = OS.execute(wakatime_cli, cmd_arguments, output, true)
+	# Inform about success or errors if user is in debug
 	if debug:
 		if exit_code == -1:
 			Utils.plugin_print("Failed to send heartbeat: %s" % output)
@@ -420,7 +426,11 @@ func _on_save_key(prompt: PopupPanel) -> void:
 	
 func get_user_agent() -> String:
 	"""Get user agent identifier"""
-	return "godot/%s %s %s" % [get_engine_version(), _get_plugin_name(), get_plugin_version()]
+	var os_name = OS.get_name().to_lower()
+	return "godot/%s godot-wakatime/%s" % [
+		get_engine_version(), 
+		_get_plugin_version()
+	]
 	
 func _get_plugin_name() -> String:
 	"""Get name of the plugin"""
@@ -429,6 +439,10 @@ func _get_plugin_name() -> String:
 func _get_plugin_version() -> String:
 	"""Get plugin version"""
 	return "1.0.0"
+	
+func _get_editor_name() -> String:
+	"""Get name of the editor"""
+	return "Godot%s" % get_engine_version()
 	
 func get_engine_version() -> String:
 	"""Get verison of currently used engine"""
