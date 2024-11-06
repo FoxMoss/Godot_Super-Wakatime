@@ -36,15 +36,20 @@ var system_platform: String = Utils.set_platform()[0]
 var system_architecture: String = Utils.set_platform()[1]
 
 var debug: bool = true
-
+var input_listener
 
 # #------------------------------- DIRECT PLUGIN FUNCTIONS -------------------------------
-
 func _ready() -> void:
 	setup_plugin()
 	
 func _exit_tree() -> void:
 	_disable_plugin()
+	
+func _input(event: InputEvent) -> void:
+	"""Handle all input events"""
+	if event is InputEventKey or event is InputEventMouseButton:
+		var file = get_current_file()
+		handle_activity(file)
 
 func setup_plugin() -> void:
 	"""Setup Wakatime plugin, download dependencies if needed, initialize menu"""
@@ -80,10 +85,10 @@ func _on_script_changed(file) -> void:
 	"""Handle changing scripts"""
 	handle_activity(file)
 	
-func _unhandled_key_input(event: InputEvent) -> void:
-	"""Handle key inputs"""
-	var file = get_current_file()
-	handle_activity(file)
+#func _unhandled_key_input(event: InputEvent) -> void:
+#	"""Handle key inputs"""
+#	var file = get_current_file()
+#	handle_activity(file)
 	
 func _save_external_data() -> void:
 	"""Handle saving files"""
@@ -113,15 +118,12 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 		Utils.plugin_print("Failed to get Wakatime API key")
 		return
 		
-	print(get_user_agent())
-		
 	# Create heartbeat
 	var heartbeat = HeartBeat.new(filepath, Time.get_unix_time_from_system(), is_write)
 	
 	# Current text editor
 	var text_editor = _find_active_script_editor()
 	var cursor_pos = _get_cursor_pos(text_editor)
-	
 	
 	# Append all informations as Wakatime CLI arguments
 	var cmd: Array[Variant] = ["--entity", heartbeat.file_path, "--key", api_key]
@@ -139,14 +141,15 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	WorkerThreadPool.add_task(cmd_callable)
 	last_heartbeat = heartbeat
 	
-func _find_active_script_editor() -> CodeEdit:
+func _find_active_script_editor():
 	"""Return currently used script editor"""
 	# Get script editor
 	var script_editor = get_editor_interface().get_script_editor()
-	var tabs = script_editor.get_current_editor()
+	var current_editor = script_editor.get_current_editor()
+	
 	# Try to find code editor from it
-	if tabs:
-		return _find_code_edit_recursive(tabs)
+	if current_editor:
+		return _find_code_edit_recursive(script_editor.get_current_editor())
 	return null
 
 func _find_code_edit_recursive(node: Node) -> CodeEdit:
