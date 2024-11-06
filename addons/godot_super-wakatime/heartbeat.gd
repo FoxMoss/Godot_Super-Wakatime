@@ -8,13 +8,13 @@ var time
 var is_write
 var cursorpos
 var lines
-var lineno
+var line_no
 var line_additions
 var line_deletions
 var language
 var project
 
-func _init(file_path = '', time = 0, is_write = false):
+func _init(file_path: String = '', time: int = 0, is_write: bool = false):
 	self.file_path = file_path
 	self.time = time
 	self.is_write = is_write

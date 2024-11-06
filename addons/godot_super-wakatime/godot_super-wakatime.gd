@@ -116,6 +116,13 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	# Create heartbeat
 	var heartbeat = HeartBeat.new(filepath, Time.get_unix_time_from_system(), is_write)
 	
+	# Current text editor
+	var script_editor = get_editor_interface().get_script_editor()
+	var text_editor = _find_active_script_editor()
+	print("Text editor", text_editor)
+	_get_cursor_pos(text_editor)
+	
+	
 	# Append all informations as Wakatime CLI arguments
 	var cmd: Array[Variant] = ["--entity", heartbeat.file_path, "--key", api_key, "--plugin", 
 		get_user_agent()]
@@ -123,11 +130,50 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 		cmd.append("--write")
 	cmd.append("--project")
 	cmd.append(ProjectSettings.get("application/config/name"))
+	#cmd.append_array(["--lineno", ])
 	
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
+	
+	Utils.plugin_print("----- Info ------")
+	Utils.plugin_print("Project: %s" % ProjectSettings.get("application/config/name"))
+	Utils.plugin_print("Entity: %s" % heartbeat.file_path)
+	Utils.plugin_print("Plugin: %s" % get_user_agent())
+	Utils.plugin_print("")
+	
 	WorkerThreadPool.add_task(cmd_callable)
 	last_heartbeat = heartbeat
+	
+func _find_active_script_editor() -> CodeEdit:
+	var script_editor = get_editor_interface().get_script_editor()
+	var tabs = script_editor.get_current_editor()
+	if tabs:
+		return _find_code_edit_recursive(tabs)
+	return null
+
+func _find_code_edit_recursive(node: Node) -> CodeEdit:
+	if node is CodeEdit:
+		return node
+		
+	for child in node.get_children():
+		var editor = _find_text_editor(child)
+		if editor:
+			return editor
+	return null
+	
+func _find_text_editor(node):
+	if node is CodeEdit and node.visible:
+		return node
+	for child in node.get_children():
+		var potential = _find_text_editor(child)
+		if potential:
+			return potential
+	return null
+	
+func _get_cursor_pos(text_editor):
+	if text_editor is CodeEdit:
+		print("line: ", text_editor.get_caret_line() + 1)
+		print("column: ", text_editor.get_caret_column() + 1)
 	
 func _handle_heartbeat(cmd_arguments) -> void:
 	if wakatime_cli == null:
