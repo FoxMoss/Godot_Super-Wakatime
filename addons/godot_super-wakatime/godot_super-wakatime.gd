@@ -36,20 +36,66 @@ var system_platform: String = Utils.set_platform()[0]
 var system_architecture: String = Utils.set_platform()[1]
 
 var debug: bool = true
-var input_listener
+var last_scene_path = ''
+var last_time = 0
+var previous_state = ''
+
+const LOG_INTERVAL = 60000
 
 # #------------------------------- DIRECT PLUGIN FUNCTIONS -------------------------------
 func _ready() -> void:
 	setup_plugin()
+	set_process(true)
+	
+	#var scene_tree = get_tree()
+	#if scene_tree:
+	#	scene_tree.connect("node_changed", Callable(self, "_on_scene_modified"))
 	
 func _exit_tree() -> void:
 	_disable_plugin()
+	set_process(false)
+	
+	
+func _physics_process(delta: float) -> void:
+	"""Process plugin changes over time"""
+	# Every 1000 frames check for updates
+	if Engine.get_physics_frames() % 1000 == 0:
+		# Check for scene change
+		var scene_root = get_editor_interface().get_edited_scene_root()
+		if scene_root:
+			var current_scene_path = _get_current_scene()
+			
+			# If currently used scene is different thatn 1000 frames ago, log activity
+			if current_scene_path != last_scene_path:
+				last_scene_path = current_scene_path
+				handle_activity(current_scene_path)
+				print("\nSCENE CHANGED\n")
+				
+			else:
+				# Check for scene updates
+				var current_scene = EditorInterface.get_edited_scene_root()
+				if current_scene:
+					var state = generate_scene_state(current_scene)
+					if state != previous_state:
+						print("UPDATE")
+						previous_state = state
+						handle_activity(current_scene_path)
+					else:
+						previous_state = state
+		else:
+			last_scene_path = '' 
+					
+func generate_scene_state(node: Node) -> String:
+	var state = str(node.get_instance_id())
+	for child in node.get_children():
+		state += str(child.get_instance_id())
+	return str(state)
 	
 func _input(event: InputEvent) -> void:
 	"""Handle all input events"""
 	if event is InputEventKey or event is InputEventMouseButton:
 		var file = get_current_file()
-		handle_activity(file)
+		handle_activity(ProjectSettings.globalize_path(file.resource_path))
 
 func setup_plugin() -> void:
 	"""Setup Wakatime plugin, download dependencies if needed, initialize menu"""
@@ -66,15 +112,18 @@ func setup_plugin() -> void:
 	add_tool_menu_item(API_MENU_ITEM, request_api_key)
 	add_tool_menu_item(CONFIG_MENU_ITEM, open_config)
 	
-	# Connect editor and playground signals
+	# Connect code editor signals
 	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
 	script_editor.call_deferred("connect", "editor_script_changed", Callable(self, 
 		"_on_editor_script_changed"))
 
 func _disable_plugin() -> void:
+	"""Cleanup after disabling plugin"""
+	# Remove items from menu
 	remove_tool_menu_item(API_MENU_ITEM)
 	remove_tool_menu_item(CONFIG_MENU_ITEM)
 	
+	# Disconnect script editor tracking
 	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
 	if script_editor.is_connected("editor_script_changed", Callable(self, 
 		"_on_editor_script_changed")):
@@ -83,7 +132,7 @@ func _disable_plugin() -> void:
 		
 func _on_script_changed(file) -> void:
 	"""Handle changing scripts"""
-	handle_activity(file)
+	handle_activity(ProjectSettings.globalize_path(file.resource_path))
 	
 #func _unhandled_key_input(event: InputEvent) -> void:
 #	"""Handle key inputs"""
@@ -93,7 +142,16 @@ func _on_script_changed(file) -> void:
 func _save_external_data() -> void:
 	"""Handle saving files"""
 	var file = get_current_file()
-	handle_activity(file, true)
+	handle_activity(ProjectSettings.globalize_path(file.resource_path), true)
+	
+func _get_current_scene():
+	"""Get currently used scene"""
+	return ProjectSettings.globalize_path(EditorInterface.get_edited_scene_root().scene_file_path)
+	
+func _on_scene_modified():
+	var current_scene = get_tree().current_scene
+	if current_scene:
+		handle_activity(_get_current_scene())
 	
 func get_current_file() -> Script:
 	"""Get currently used script file"""
@@ -106,9 +164,9 @@ func handle_activity(file, is_write: bool = false) -> void:
 		return
 	
 	# If user is saving file or has changed path, or enough time has passed for a heartbeat - send it
-	var filepath = ProjectSettings.globalize_path(file.resource_path)
-	if is_write or filepath != last_heartbeat.file_path or enough_time_passed():
-		send_heartbeat(filepath, is_write)
+	#var filepath = ProjectSettings.globalize_path(file.resource_path)
+	if is_write or file != last_heartbeat.file_path or enough_time_passed():
+		send_heartbeat(file, is_write)
 		
 func send_heartbeat(filepath: String, is_write: bool) -> void:
 	"""Send Wakatime heartbeat for the specified file"""
@@ -117,6 +175,8 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	if api_key == null:
 		Utils.plugin_print("Failed to get Wakatime API key")
 		return
+		
+	_get_current_scene()
 		
 	# Create heartbeat
 	var heartbeat = HeartBeat.new(filepath, Time.get_unix_time_from_system(), is_write)
@@ -134,6 +194,7 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	cmd.append_array(["--lineno", str(cursor_pos.line)])
 	cmd.append_array(["--cursorpos", str(cursor_pos.column)])
 	cmd.append_array(["--plugin", get_user_agent()])
+	cmd.append_array(["--alternate-language", "Scene"])
 	
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
@@ -168,8 +229,6 @@ func _find_code_edit_recursive(node: Node) -> CodeEdit:
 func _get_cursor_pos(text_editor) -> Dictionary:
 	"""Get cursor editor from the given text editor"""
 	if text_editor:
-		print("line: ", text_editor.get_caret_line() + 1)
-		print("column: ", text_editor.get_caret_column() + 1)
 		
 		return {
 			"line": text_editor.get_caret_line() + 1,
@@ -199,7 +258,6 @@ func _handle_heartbeat(cmd_arguments) -> void:
 func enough_time_passed():
 	"""Check if enough time has passed for another heartbeat"""
 	return Time.get_unix_time_from_system() - last_heartbeat.time >= HeartBeat.FILE_MODIFIED_DELAY
-
 
 #------------------------------- FILE FUNCTIONS -------------------------------
 func open_config() -> void:
