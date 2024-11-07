@@ -368,7 +368,7 @@ func download_decompressor() -> void:
 		_disable_plugin()
 		Utils.plugin_print_err("Failed to start downloading Ouch! library [Error: %s]" % status)
 		
-func _wakatime_download_finished(result, status, headers, body) -> void:
+func _wakatime_download_completed(result, status, headers, body) -> void:
 	"""Finish downloading wakatime, handle errors"""
 	if result != HTTPRequest.RESULT_SUCCESS:
 		Utils.plugin_print_err("Error while downloading Wakatime CLI")
@@ -391,11 +391,12 @@ func _decompressor_download_finished(result, status, headers, body) -> void:
 		Utils.plugin_print_err("Failed to save Ouch! library")
 		_disable_plugin()
 		return
-		
+
 	# Save decompressor path, give write permissions to it
 	var decompressor: String = \
 		ProjectSettings.globalize_path(DecompressorUtils.decompressor_cli(decompressor_cli, 
 			system_platform, PLUGIN_PATH))
+	print("Decomperssor", decompressor)
 	if system_platform == "linux" or system_platform == "darwin":
 		OS.execute("chmod", ["+x", decompressor], [], true)
 		
@@ -407,13 +408,14 @@ func _decompressor_download_finished(result, status, headers, body) -> void:
 func extract_files(source: String, destination: String) -> void:
 	"""Extract downloaded Wakatime zip"""
 	# If decompression library and wakatime zip folder don't exist, return
-	if not (DecompressorUtils.lib_exists(decompressor_cli, system_platform, 
-			PLUGIN_PATH) and Utils.wakatime_zip_exists(ZIP_PATH)):
+	if not DecompressorUtils.lib_exists(decompressor_cli, system_platform, 
+			PLUGIN_PATH) and not Utils.wakatime_zip_exists(ZIP_PATH):
 		return
 		
 	# Get paths as global
 	Utils.plugin_print("Extracting Wakatime...")
-	var decompressor: String = ProjectSettings.globalize_path(
+	print("Plugin:", ProjectSettings.globalize_path("res://" + DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, system_architecture)))
+	var decompressor: String = ProjectSettings.globalize_path("res://" + 
 			DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, system_architecture))
 	var src: String = ProjectSettings.globalize_path(source)
 	var dest: String = ProjectSettings.globalize_path(destination)
