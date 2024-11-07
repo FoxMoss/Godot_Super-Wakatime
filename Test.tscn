@@ -6,3 +6,5 @@
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_mtyf4")
+
+[node name="Node2D" type="Node2D" parent="."]

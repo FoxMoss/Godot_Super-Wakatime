@@ -97,11 +97,12 @@ func _input(event: InputEvent) -> void:
 	# Key events
 	if event is InputEventKey:
 		var file = get_current_file()
-		handle_activity(ProjectSettings.globalize_path(file.resource_path))
+		if file:
+			handle_activity(ProjectSettings.globalize_path(file.resource_path))
 	# Mouse button events
 	elif event is InputEventMouse and event.is_pressed():
 		var file = _get_current_scene()
-		if file != '':
+		if file != '' and file:
 			handle_activity_scene(file)
 
 func setup_plugin() -> void:
@@ -139,7 +140,8 @@ func _disable_plugin() -> void:
 		
 func _on_script_changed(file) -> void:
 	"""Handle changing scripts"""
-	last_file_path = ProjectSettings.globalize_path(file.resource_path)
+	if file:
+		last_file_path = ProjectSettings.globalize_path(file.resource_path)
 	handle_activity(last_file_path)
 	
 #func _unhandled_key_input(event: InputEvent) -> void:
@@ -150,14 +152,21 @@ func _on_script_changed(file) -> void:
 func _save_external_data() -> void:
 	"""Handle saving files"""
 	var file = get_current_file()
-	handle_activity(ProjectSettings.globalize_path(file.resource_path), true)
+	if file:
+		handle_activity(ProjectSettings.globalize_path(file.resource_path), true)
 	
 func _get_current_scene():
 	"""Get currently used scene"""
 	if EditorInterface.get_edited_scene_root():
-		return ProjectSettings.globalize_path(EditorInterface.get_edited_scene_root().scene_file_path)
+		var file = EditorInterface.get_edited_scene_root()
+		if file:
+			return ProjectSettings.globalize_path(file.scene_file_path)
 	else:
-		return ProjectSettings.globalize_path(get_current_file().resource_path)
+		var file = get_current_file()
+		if file:
+			return ProjectSettings.globalize_path(file.resource_path)
+			
+	return null
 	
 func _on_scene_modified():
 	"""Send heartbeat when scene is modified"""
@@ -165,17 +174,18 @@ func _on_scene_modified():
 	if current_scene:
 		handle_activity_scene(_get_current_scene())
 	
-func get_current_file() -> Script:
+func get_current_file():
 	"""Get currently used script file"""
-	last_file_path = ProjectSettings.globalize_path(get_editor_interface()
-	.get_script_editor().get_current_script().resource_path)
+	var file = get_editor_interface().get_script_editor().get_current_script()
+	if file:
+		last_file_path = ProjectSettings.globalize_path(file.resource_path)
 	
 	return get_editor_interface().get_script_editor().get_current_script()
 		
 func handle_activity(file, is_write: bool = false) -> void:
 	"""Handle user's activity"""
 	# If file that has activity in or wakatime cli doesn't exist, return
-	if not (file and Utils.wakatime_cli_exists(get_waka_cli())):
+	if not file or not Utils.wakatime_cli_exists(get_waka_cli()):
 		return
 	
 	# If user is saving file or has changed path, or enough time has passed for a heartbeat - send it
@@ -185,7 +195,7 @@ func handle_activity(file, is_write: bool = false) -> void:
 		
 func handle_activity_scene(file, is_write: bool = false, changed_file: bool = false) -> void:
 	"""Handle activity in scenes"""
-	if not (file and Utils.wakatime_cli_exists(get_waka_cli())):
+	if not file or not Utils.wakatime_cli_exists(get_waka_cli()):
 		return
 		
 	if is_write or changed_file or enough_time_passed():
@@ -217,8 +227,8 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	var cmd: Array[Variant] = ["--entity", filepath, "--key", api_key]
 	if is_write:
 		cmd.append("--write")
-	cmd.append(["--project", ProjectSettings.get("application/config/name")])
-	cmd.append(["--time", str(heartbeat.time)])
+	cmd.append_array(["--alternate-project", ProjectSettings.get("application/config/name")])
+	cmd.append_array(["--time", str(heartbeat.time)])
 	cmd.append_array(["--lineno", str(cursor_pos.line)])
 	cmd.append_array(["--cursorpos", str(cursor_pos.column)])
 	cmd.append_array(["--plugin", get_user_agent()])
