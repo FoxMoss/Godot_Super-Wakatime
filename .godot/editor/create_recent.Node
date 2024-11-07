@@ -1,8 +1,10 @@
+HBoxContainer
+Label
+Panel
 Sprite2D
 PopupPanel
 ColorRect
 Window
 Button
-HBoxContainer
 LineEdit
 VBoxContainer
