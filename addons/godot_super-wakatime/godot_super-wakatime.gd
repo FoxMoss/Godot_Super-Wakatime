@@ -36,7 +36,7 @@ var Counter: PackedScene = preload("res://addons/godot_super-wakatime/counter.ts
 var system_platform: String = Utils.set_platform()[0]
 var system_architecture: String = Utils.set_platform()[1]
 
-var debug: bool = true
+var debug: bool = false
 var last_scene_path: String = ''
 var last_file_path: String = ''
 var last_time: int = 0
@@ -332,7 +332,17 @@ func update_today_time(wakatime_cli) -> void:
 		current_time = convert_time(output[0])
 	else:
 		current_time = "Wakatime"
-	print(current_time)
+	#print(current_time)
+	call_deferred("_update_panel_label", current_time, output[0])
+	
+func _update_panel_label(label: String, content: String):
+	"""Update bottom panel name that shows time"""
+	# If counter exists and it has a label, update both the label and panel's name
+	if counter_instance and counter_instance.get_node("HBoxContainer/Label"):
+		counter_instance.get_node("HBoxContainer/Label").text = content
+		# Workaround to rename panel
+		remove_control_from_bottom_panel(counter_instance)
+		add_control_to_bottom_panel(counter_instance, label)
 		
 func convert_time(complex_time: String):
 	"""Convert time from complex format into basic one, combine times"""
