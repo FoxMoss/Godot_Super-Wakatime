@@ -321,14 +321,15 @@ func get_waka_cli() -> String:
 		var build = Utils.get_waka_build(system_platform, system_architecture)
 		var ext: String = ".exe" if system_platform == "windows" else ''
 		wakatime_cli = "%s/%s%s" % [get_waka_dir(), build, ext]
+		print("Wakatime_CLI: ", wakatime_cli)
 	return wakatime_cli
 	
 func check_dependencies() -> void:
 	"""Make sure all dependencies exist"""
 	if !Utils.wakatime_cli_exists(get_waka_cli()):
 		download_wakatime()
-	if !DecompressorUtils.lib_exists(decompressor_cli, system_platform, PLUGIN_PATH):
-		download_decompressor()
+		if !DecompressorUtils.lib_exists(decompressor_cli, system_platform, PLUGIN_PATH):
+			download_decompressor()
 	
 func download_wakatime() -> void:
 	"""Download wakatime cli"""
@@ -396,7 +397,7 @@ func _decompressor_download_finished(result, status, headers, body) -> void:
 	var decompressor: String = \
 		ProjectSettings.globalize_path(DecompressorUtils.decompressor_cli(decompressor_cli, 
 			system_platform, PLUGIN_PATH))
-	print("Decomperssor", decompressor)
+			
 	if system_platform == "linux" or system_platform == "darwin":
 		OS.execute("chmod", ["+x", decompressor], [], true)
 		
@@ -414,15 +415,21 @@ func extract_files(source: String, destination: String) -> void:
 		
 	# Get paths as global
 	Utils.plugin_print("Extracting Wakatime...")
-	print("Plugin:", ProjectSettings.globalize_path("res://" + DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, system_architecture)))
-	var decompressor: String = ProjectSettings.globalize_path("res://" + 
-			DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, system_architecture))
+	var decompressor: String = ProjectSettings.globalize_path( 
+			DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, PLUGIN_PATH))
 	var src: String = ProjectSettings.globalize_path(source)
 	var dest: String = ProjectSettings.globalize_path(destination)
 	
 	# Execute Ouch! decompression command, catch errors
 	var errors: Array[Variant] = []
 	var args: Array[String] = ["--yes", "decompress", src, "--dir", dest]
+	
+	print("\nSrc:", src)
+	print("Dest:", dest)
+	print("Plugin path:", PLUGIN_PATH)
+	print("Decompressor cli:", decompressor)
+	print("Decompressor:", decompressor, '\n')
+	
 	var error: int = OS.execute(decompressor, args, errors, true)
 	if error:
 		Utils.plugin_print(errors)
@@ -433,8 +440,8 @@ func extract_files(source: String, destination: String) -> void:
 	if Utils.wakatime_cli_exists(get_waka_cli()):
 		Utils.plugin_print("Wakatime CLI installed (path: %s)" % get_waka_cli())
 	else:
-		_disable_plugin()
 		Utils.plugin_print_err("Installation of Wakatime failed")
+		_disable_plugin()
 		
 	# Remove leftover files
 	clean_files()

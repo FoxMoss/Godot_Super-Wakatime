@@ -18,10 +18,6 @@ config/icon="res://icon.svg"
 
 project/assembly_name="WakatimePlugin"
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/godot_super-wakatime/plugin.cfg")
-
 [rendering]
 
 renderer/rendering_method="mobile"
