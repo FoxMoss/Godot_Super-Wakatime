@@ -45,6 +45,7 @@ const LOG_INTERVAL: int = 60000
 
 var scene_mode: bool = false
 
+var key_get_tries: int = 0
 
 # #------------------------------- DIRECT PLUGIN FUNCTIONS -------------------------------
 func _ready() -> void:
@@ -203,11 +204,17 @@ func handle_activity_scene(file, is_write: bool = false, changed_file: bool = fa
 		send_heartbeat(file, is_write)
 		
 func send_heartbeat(filepath: String, is_write: bool) -> void:
-	"""Send Wakatime heartbeat for the specified file"""
+	"""Send Wakatimde heartbeat for the specified file"""
 	# Check Wakatime API key
 	var api_key = get_api_key()
 	if api_key == null:
 		Utils.plugin_print("Failed to get Wakatime API key")
+		if (key_get_tries < 3):
+			request_api_key()
+			key_get_tries += 1
+		else:
+			Utils.plugin_print("If this keep occuring, please create a file: ~/.wakatime.cfg\n
+				initialize it with:\n[settings]\napi_key=\nAnd insert your api key")
 		return
 		
 	# Make sure not to trigger additional heartbeats cause of events from scenes
@@ -415,8 +422,14 @@ func extract_files(source: String, destination: String) -> void:
 		
 	# Get paths as global
 	Utils.plugin_print("Extracting Wakatime...")
-	var decompressor: String = ProjectSettings.globalize_path( 
+	var decompressor: String
+	if system_platform == "windows":
+		decompressor = ProjectSettings.globalize_path( 
 			DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, PLUGIN_PATH))
+	else:
+		decompressor = ProjectSettings.globalize_path("res://" +
+			DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, PLUGIN_PATH))
+		
 	var src: String = ProjectSettings.globalize_path(source)
 	var dest: String = ProjectSettings.globalize_path(destination)
 	
