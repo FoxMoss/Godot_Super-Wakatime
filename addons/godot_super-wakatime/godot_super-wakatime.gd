@@ -491,10 +491,11 @@ func request_api_key() -> void:
 	await prompt.popup_hide
 	prompt.queue_free()
 	
-func _set_api_key(prompt: PopupPanel, api_key: String) -> void:
+func _set_api_key(prompt: PopupPanel, api_key) -> void:
 	"""Set API key from prompt"""
 	# Safeguard against empty key
-	api_key = api_key if api_key != null else ''
+	if api_key == null:
+		api_key = ''
 		
 	# Set correct text, to show API key
 	var edit_field: Node = prompt.get_node("VBoxContainer/HBoxContainerTop/LineEdit")
@@ -515,11 +516,11 @@ func _on_popup_hide(prompt: PopupPanel):
 	"""Close the popup window when user wants to hide it"""
 	prompt.queue_free()
 	
-func _on_toogle_key_text(prompt: PopupPanel) -> void:
+func _on_toggle_key_text(prompt: PopupPanel) -> void:
 	"""Handle hiding and showing API key"""
 	# Get nodes
 	var show_button: Node = prompt.get_node("VBoxContainer/HBoxContainerTop/ShowButton")
-	var edit_field: Node = prompt.get_node("VBoxContainer/HBoxContainerBottom/SubmitButton")
+	var edit_field: Node = prompt.get_node("VBoxContainer/HBoxContainerTop/LineEdit")
 	
 	# Set the correct text and hide field if needed
 	edit_field.secret = not edit_field.secret
