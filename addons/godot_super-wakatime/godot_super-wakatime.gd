@@ -30,6 +30,7 @@ var wakatime_cli = null
 var decompressor_cli = null
 
 var ApiKeyPrompt: PackedScene = preload("res://addons/godot_super-wakatime/api_key_prompt.tscn")
+var Counter: PackedScene = preload("res://addons/godot_super-wakatime/counter.tscn")
 
 # Set platform
 var system_platform: String = Utils.set_platform()[0]
@@ -40,12 +41,13 @@ var last_scene_path: String = ''
 var last_file_path: String = ''
 var last_time: int = 0
 var previous_state: String = ''
-
 const LOG_INTERVAL: int = 60000
-
 var scene_mode: bool = false
 
 var key_get_tries: int = 0
+var counter_instance: Node
+var current_time: String = "0 hrs, 0mins"
+
 
 # #------------------------------- DIRECT PLUGIN FUNCTIONS -------------------------------
 func _ready() -> void:
@@ -121,6 +123,9 @@ func setup_plugin() -> void:
 	add_tool_menu_item(API_MENU_ITEM, request_api_key)
 	add_tool_menu_item(CONFIG_MENU_ITEM, open_config)
 	
+	counter_instance = Counter.instantiate()
+	add_control_to_bottom_panel(counter_instance, current_time)
+	
 	# Connect code editor signals
 	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
 	script_editor.call_deferred("connect", "editor_script_changed", Callable(self, 
@@ -131,6 +136,8 @@ func _disable_plugin() -> void:
 	# Remove items from menu
 	remove_tool_menu_item(API_MENU_ITEM)
 	remove_tool_menu_item(CONFIG_MENU_ITEM)
+	
+	remove_control_from_bottom_panel(counter_instance)
 	
 	# Disconnect script editor tracking
 	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
@@ -221,7 +228,7 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	var file = filepath
 	if scene_mode:
 		file = last_file_path
-		print("\n-------SCENE MODE--------\n")
+		#print("\n-------SCENE MODE--------\n")
 		
 	# Create heartbeat
 	var heartbeat = HeartBeat.new(file, Time.get_unix_time_from_system(), is_write)
@@ -300,6 +307,9 @@ func _handle_heartbeat(cmd_arguments) -> void:
 		
 	var output: Array[Variant] = []
 	var exit_code: int = OS.execute(wakatime_cli, cmd_arguments, output, true)
+	
+	update_today_time(wakatime_cli)
+		
 	# Inform about success or errors if user is in debug
 	if debug:
 		if exit_code == -1:
@@ -310,6 +320,40 @@ func _handle_heartbeat(cmd_arguments) -> void:
 func enough_time_passed():
 	"""Check if enough time has passed for another heartbeat"""
 	return Time.get_unix_time_from_system() - last_heartbeat.time >= HeartBeat.FILE_MODIFIED_DELAY
+	
+func update_today_time(wakatime_cli) -> void:
+	"""Update today's time in menu"""
+	var output: Array[Variant] = []
+	# Get today's time from Wakatime CLI
+	var exit_code: int = OS.execute(wakatime_cli, ["--today"], output, true)
+	
+	# Convert it and combine different categories into
+	if exit_code == 0:
+		current_time = convert_time(output[0])
+	else:
+		current_time = "Wakatime"
+	print(current_time)
+		
+func convert_time(complex_time: String):
+	"""Convert time from complex format into basic one, combine times"""
+	var hours: int
+	var minutes: int
+	
+	# Split times into categories
+	var time_categories = complex_time.split(', ')
+	for category in time_categories:
+		# Split time into parts, get first and third part (hours and minutes)
+		var time_parts = category.split(' ')
+		if time_parts.size() >= 3:
+			hours += int(time_parts[0])
+			minutes += int(time_parts[2])
+	
+	# Wrap minutes into hours if needed
+	while minutes >= 60:
+		minutes -= 60
+		hours += 1
+
+	return str(hours) + " hrs, " + str(minutes) + " mins"
 
 #------------------------------- FILE FUNCTIONS -------------------------------
 func open_config() -> void:
@@ -328,7 +372,6 @@ func get_waka_cli() -> String:
 		var build = Utils.get_waka_build(system_platform, system_architecture)
 		var ext: String = ".exe" if system_platform == "windows" else ''
 		wakatime_cli = "%s/%s%s" % [get_waka_dir(), build, ext]
-		print("Wakatime_CLI: ", wakatime_cli)
 	return wakatime_cli
 	
 func check_dependencies() -> void:
@@ -436,12 +479,6 @@ func extract_files(source: String, destination: String) -> void:
 	# Execute Ouch! decompression command, catch errors
 	var errors: Array[Variant] = []
 	var args: Array[String] = ["--yes", "decompress", src, "--dir", dest]
-	
-	print("\nSrc:", src)
-	print("Dest:", dest)
-	print("Plugin path:", PLUGIN_PATH)
-	print("Decompressor cli:", decompressor)
-	print("Decompressor:", decompressor, '\n')
 	
 	var error: int = OS.execute(decompressor, args, errors, true)
 	if error:
