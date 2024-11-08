@@ -208,13 +208,13 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	# Check Wakatime API key
 	var api_key = get_api_key()
 	if api_key == null:
-		Utils.plugin_print("Failed to get Wakatime API key")
+		Utils.plugin_print("Failed to get Wakatime API key. Are you sure it's correct?")
 		if (key_get_tries < 3):
 			request_api_key()
 			key_get_tries += 1
 		else:
 			Utils.plugin_print("If this keep occuring, please create a file: ~/.wakatime.cfg\n
-				initialize it with:\n[settings]\napi_key=\nAnd insert your api key")
+				initialize it with:\n[settings]\napi_key={your_key}")
 		return
 		
 	# Make sure not to trigger additional heartbeats cause of events from scenes
