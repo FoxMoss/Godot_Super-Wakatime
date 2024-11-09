@@ -22,9 +22,9 @@
         <br />
         <a href="">Get from Asset Lib</a>
         ·
-        <a href="">View Demo</a>
+        <a href="https://youtu.be/rqAc-YdVXyM">View Demo</a>
         ·
-        <a href="">Report Bug / Request Feature</a>
+        <a href="https://github.com/BudzioT/Godot_Super-Wakatime/issues/new">Report Bug / Request Feature</a>
     </p>
 </div>
 
