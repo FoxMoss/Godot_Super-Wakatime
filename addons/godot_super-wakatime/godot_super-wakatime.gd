@@ -593,7 +593,7 @@ func _on_save_key(prompt: PopupPanel) -> void:
 	var api_key  = edit_field.text.strip_edges()
 	
 	# Try to set api key for wakatime and handle errors
-	var err: int = OS.execute(get_waka_cli(), ["--config-write", "api-key=%s" % api_key])
+	var err: int = OS.execute(get_waka_cli(), ["--config-write", "api_key=%s" % api_key])
 	if err == -1:
 		Utils.plugin_print("Failed to save API key")
 	prompt.visible = false
