@@ -116,7 +116,7 @@ Don't know how to use this plugin? Here are the steps:
 If you are coming from High Seas used this:
     ```sh
     [settings]
-    api_url = https://waka.hackclub.com/api
+    api_url = https://hackatime.hackclub.com/api/hackatime/v1
     api_key=xxxx
     ```
 4. Wakatime CLI should have been installed automatically along with Ouch! Decompression library
