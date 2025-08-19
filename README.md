@@ -17,7 +17,7 @@
     <p align="center">
         Tool to measure time spent in loved by many people game engine - Godot
         <br />
-        Officially approved to use in High Seas event created by Hack Club
+        Officially approved to use in events created by Hack Club
         <br />
         <br />
         <a href="https://godotengine.org/asset-library/asset/3484">Get from Asset Lib</a>
@@ -112,7 +112,7 @@ Don't know how to use this plugin? Here are the steps:
     ```
     Where xxxx is your api key
 <br /><br />
-If you are coming from High Seas used this:
+If you are coming from Hack Club use this:
     ```sh
     [settings]
     api_url = https://hackatime.hackclub.com/api/hackatime/v1
