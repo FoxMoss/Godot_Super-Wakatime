@@ -46,7 +46,7 @@ var scene_mode: bool = false
 
 var key_get_tries: int = 0
 var counter_instance: Node
-var current_time: String = "0 hrs, 0 mins"
+var current_time: String = "0 hrs, 0mins"
 
 
 # #------------------------------- DIRECT PLUGIN FUNCTIONS -------------------------------
@@ -86,7 +86,7 @@ func _physics_process(delta: float) -> void:
 					else:
 						previous_state = state
 		else:
-			last_scene_path = ''
+			last_scene_path = '' 
 					
 func generate_scene_state(node: Node) -> String:
 	"""Generate a scene state identifier"""
@@ -128,7 +128,7 @@ func setup_plugin() -> void:
 	
 	# Connect code editor signals
 	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
-	script_editor.call_deferred("connect", "editor_script_changed", Callable(self,
+	script_editor.call_deferred("connect", "editor_script_changed", Callable(self, 
 		"_on_script_changed"))
 
 func _disable_plugin() -> void:
@@ -141,9 +141,9 @@ func _disable_plugin() -> void:
 	
 	# Disconnect script editor tracking
 	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
-	if script_editor.is_connected("editor_script_changed", Callable(self,
+	if script_editor.is_connected("editor_script_changed", Callable(self, 
 		"_on_script_changed")):
-		script_editor.disconnect("editor_script_changed", Callable(self,
+		script_editor.disconnect("editor_script_changed", Callable(self, 
 			"_on_script_changed"))
 		
 func _on_script_changed(file) -> void:
@@ -251,7 +251,7 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 	if scene_mode:
 		cmd.append_array(["--category", "building"])
 	else:
-		cmd.append(["--category", "coding"])
+		cmd.append(["--category", "coding"])	
 	
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
@@ -278,7 +278,7 @@ func _find_code_edit_recursive(node: Node) -> CodeEdit:
 	if node is CodeEdit:
 		return node
 
-	# Try to find it in every child of a given node
+	# Try to find it in every child of a given node		
 	for child in node.get_children():
 		var editor = _find_code_edit_recursive(child)
 		if editor:
@@ -288,6 +288,7 @@ func _find_code_edit_recursive(node: Node) -> CodeEdit:
 func _get_cursor_pos(text_editor) -> Dictionary:
 	"""Get cursor editor from the given text editor"""
 	if text_editor:
+		
 		return {
 			"line": text_editor.get_caret_line() + 1,
 			"column": text_editor.get_caret_column() + 1
@@ -338,37 +339,32 @@ func _update_panel_label(label: String, content: String):
 	"""Update bottom panel name that shows time"""
 	# If counter exists and it has a label, update both the label and panel's name
 	if counter_instance and counter_instance.get_node("HBoxContainer/Label"):
-		# Workaround to rename panel
 		counter_instance.get_node("HBoxContainer/Label").text = content
+		# Workaround to rename panel
 		remove_control_from_bottom_panel(counter_instance)
 		add_control_to_bottom_panel(counter_instance, label)
-
 		
 func convert_time(complex_time: String):
 	"""Convert time from complex format into basic one, combine times"""
-	var hours: int = 0
-	var minutes: int = 0
+	return complex_time
 	
+	"""
 	# Split times into categories
 	var time_categories = complex_time.split(', ')
 	for category in time_categories:
-		# Example category: "2h 25m" or "1h 5m"
-		var h_match = category.find("h")
-		var m_match = category.find("m")
-		if h_match != -1:
-			var h_str = category.substr(0, h_match).strip_edges()
-			if h_str.is_valid_int():
-				hours += int(h_str)
-		if m_match != -1:
-			var m_str = category.substr(category.rfind(" ", m_match) + 1, m_match - (category.rfind(" ", m_match) + 1)).strip_edges()
-			if m_str.is_valid_int():
-				minutes += int(m_str)
+		# Split time into parts, get first and third part (hours and minutes)
+		var time_parts = category.split(' ')
+		if time_parts.size() >= 3:
+			hours += int(time_parts[0])
+			minutes += int(time_parts[2])
 	
 	# Wrap minutes into hours if needed
 	while minutes >= 60:
 		minutes -= 60
 		hours += 1
+
 	return str(hours) + " hrs, " + str(minutes) + " mins"
+	"""
 
 #------------------------------- FILE FUNCTIONS -------------------------------
 func open_config() -> void:
@@ -399,7 +395,7 @@ func check_dependencies() -> void:
 func download_wakatime() -> void:
 	"""Download wakatime cli"""
 	Utils.plugin_print("Downloading Wakatime CLI...")
-	var url: String = WAKATIME_URL_FMT.format({"wakatime_build":
+	var url: String = WAKATIME_URL_FMT.format({"wakatime_build": 
 			Utils.get_waka_build(system_platform, system_architecture)})
 	
 	# Try downloading wakatime
@@ -417,7 +413,7 @@ func download_wakatime() -> void:
 func download_decompressor() -> void:
 	"""Download ouch decompressor"""
 	Utils.plugin_print("Downloading Ouch! decompression library...")
-	var url: String = DECOMPERSSOR_URL_FMT.format({"ouch_build":
+	var url: String = DECOMPERSSOR_URL_FMT.format({"ouch_build": 
 			Utils.get_ouch_build(system_platform)})
 	if system_platform == "windows":
 		url += ".exe"
@@ -460,7 +456,7 @@ func _decompressor_download_finished(result, status, headers, body) -> void:
 
 	# Save decompressor path, give write permissions to it
 	var decompressor: String = \
-		ProjectSettings.globalize_path(DecompressorUtils.decompressor_cli(decompressor_cli,
+		ProjectSettings.globalize_path(DecompressorUtils.decompressor_cli(decompressor_cli, 
 			system_platform, PLUGIN_PATH))
 			
 	if system_platform == "linux" or system_platform == "darwin":
@@ -474,7 +470,7 @@ func _decompressor_download_finished(result, status, headers, body) -> void:
 func extract_files(source: String, destination: String) -> void:
 	"""Extract downloaded Wakatime zip"""
 	# If decompression library and wakatime zip folder don't exist, return
-	if not DecompressorUtils.lib_exists(decompressor_cli, system_platform,
+	if not DecompressorUtils.lib_exists(decompressor_cli, system_platform, 
 			PLUGIN_PATH) and not Utils.wakatime_zip_exists(ZIP_PATH):
 		return
 		
@@ -482,7 +478,7 @@ func extract_files(source: String, destination: String) -> void:
 	Utils.plugin_print("Extracting Wakatime...")
 	var decompressor: String
 	if system_platform == "windows":
-		decompressor = ProjectSettings.globalize_path(
+		decompressor = ProjectSettings.globalize_path( 
 			DecompressorUtils.decompressor_cli(decompressor_cli, system_platform, PLUGIN_PATH))
 	else:
 		decompressor = ProjectSettings.globalize_path("res://" +
@@ -595,7 +591,7 @@ func _on_save_key(prompt: PopupPanel) -> void:
 	"""Handle entering API key"""
 	# Get text field node and api key that's entered
 	var edit_field: Node = prompt.get_node("VBoxContainer/HBoxContainerTop/LineEdit")
-	var api_key = edit_field.text.strip_edges()
+	var api_key  = edit_field.text.strip_edges()
 	
 	# Try to set api key for wakatime and handle errors
 	var err: int = OS.execute(get_waka_cli(), ["--config-write", "api-key=%s" % api_key])
@@ -609,7 +605,7 @@ func get_user_agent() -> String:
 	"""Get user agent identifier"""
 	var os_name = OS.get_name().to_lower()
 	return "godot/%s godot-wakatime/%s" % [
-		get_engine_version(),
+		get_engine_version(), 
 		_get_plugin_version()
 	]
 	
@@ -627,5 +623,5 @@ func _get_editor_name() -> String:
 	
 func get_engine_version() -> String:
 	"""Get verison of currently used engine"""
-	return "%s.%s.%s" % [Engine.get_version_info()["major"], Engine.get_version_info()["minor"],
+	return "%s.%s.%s" % [Engine.get_version_info()["major"], Engine.get_version_info()["minor"], 
 		Engine.get_version_info()["patch"]]
