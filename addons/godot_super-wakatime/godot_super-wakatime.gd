@@ -7,10 +7,6 @@ extends EditorPlugin
 var Utils = preload("res://addons/godot_super-wakatime/utils.gd").new()
 var DecompressorUtils = preload("res://addons/godot_super-wakatime/decompressor.gd").new()
 
-# Hearbeat class
-const HeartBeat = preload("res://addons/godot_super-wakatime/heartbeat.gd")
-var last_heartbeat = HeartBeat.new()
-
 # Paths, Urls
 const PLUGIN_PATH: String = "res://addons/godot_super-wakatime"
 const ZIP_PATH: String = "%s/wakatime.zip" % PLUGIN_PATH
@@ -41,7 +37,9 @@ var last_scene_path: String = ''
 var last_file_path: String = ''
 var last_time: int = 0
 var previous_state: String = ''
-const LOG_INTERVAL: int = 60000
+
+# parity with kate-wakatime
+const LOG_INTERVAL: int = 120000
 var scene_mode: bool = false
 
 var key_get_tries: int = 0
@@ -59,60 +57,126 @@ func _exit_tree() -> void:
 	set_process(false)
 	
 	
-func _physics_process(delta: float) -> void:
-	"""Process plugin changes over time"""
-	# Every 1000 frames check for updates
-	if Engine.get_physics_frames() % 1000 == 0:
-		# Check for scene change
-		var scene_root = get_editor_interface().get_edited_scene_root()
-		if scene_root:
-			var current_scene_path = _get_current_scene()
-			
-			# If currently used scene is different thatn 1000 frames ago, log activity
-			if current_scene_path != last_scene_path:
-				last_scene_path = current_scene_path
-				handle_activity_scene(current_scene_path, false, true)
-				
-			else:
-				# Check for scene updates
-				var current_scene = EditorInterface.get_edited_scene_root()
-				if current_scene:
-					var state = generate_scene_state(current_scene)
-					# If current state is different than the previous one, handle activity
-					if state != previous_state:
-						previous_state = state
-						handle_activity_scene(current_scene_path, true)
-					# Otherwise just keep scene the same
-					else:
-						previous_state = state
-		else:
-			last_scene_path = '' 
-					
-func generate_scene_state(node: Node) -> String:
-	"""Generate a scene state identifier"""
-	var state = str(node.get_instance_id())
-	for child in node.get_children():
-		state += str(child.get_instance_id())
-	return str(state)
+class DataSnapshot:
+	var file_path: String
+	var line_no: int 
+	var cursor_pos: int 
+	var lines: int 
+
+
+func get_coding_data(file: Script = null) ->  DataSnapshot:
+	var snapshot = DataSnapshot.new()
+	if not file:
+		file = get_editor_interface().get_script_editor().get_current_script()
+
+	if not file:
+		return null
+
+	snapshot.file_path = ProjectSettings.globalize_path(file.resource_path)
+
+	var code_edit: CodeEdit = get_editor_interface().get_script_editor().get_current_editor().get_base_editor()
+	if code_edit is not CodeEdit:
+		return null
+	snapshot.line_no = code_edit.get_caret_line()
+	snapshot.cursor_pos = code_edit.get_caret_column()
+	snapshot.lines = code_edit.get_line_count()
+
+	return snapshot
+
+func get_building_data(mouse_event: InputEventMouse) -> DataSnapshot:
+	var snapshot = DataSnapshot.new()
+	var file = EditorInterface.get_edited_scene_root().scene_file_path
+
+	if not file:
+		return null
+
+	snapshot.file_path = ProjectSettings.globalize_path(file)
+
+	snapshot.line_no = int(roundf(mouse_event.position.x))
+	snapshot.cursor_pos = int(roundf(mouse_event.position.y))
+
+# no line numbers in a screen lol
+	snapshot.lines = 0
+	return snapshot
+
 	
+var last_tick_frame: int = 0
+var last_mouse_event: InputEventMouse
 func _input(event: InputEvent) -> void:
 	"""Handle all input events"""
-	# Key events
-	if event is InputEventKey:
-		var file = get_current_file()
-		if file:
-			handle_activity(ProjectSettings.globalize_path(file.resource_path))
-	# Mouse button events
-	elif event is InputEventMouse and event.is_pressed():
-		var file = _get_current_scene()
-		if file != '' and file:
-			handle_activity_scene(file)
+
+	if Time.get_ticks_msec() - last_tick_frame > LOG_INTERVAL:
+		last_tick_frame = Time.get_ticks_msec()
+
+		if tab_open == "Script":
+			if event is InputEventKey:
+				var key_event = event as InputEventKey
+				if (key_event.keycode == KEY_UP   || key_event.keycode == KEY_DOWN 
+				 || key_event.keycode == KEY_LEFT || key_event.keycode == KEY_RIGHT 
+				 || key_event.keycode == KEY_ALT  || key_event.keycode == KEY_SHIFT):
+					return
+  
+				var snapshot = get_coding_data()
+
+				if snapshot == null:
+					return
+
+				send_heartbeat(snapshot.file_path, "coding",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, false)
+
+		elif tab_open == "2D" || tab_open == "3D":
+			if event is InputEventMouse: # we dont really care if people are typing in node editor
+				var snapshot = get_building_data(event)
+
+				if snapshot == null:
+					return
+
+				send_heartbeat(snapshot.file_path, "building",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, false)
+ 
+	# store the mouse data for scene saved
+	if tab_open == "2D" || tab_open == "3D":
+		if event is InputEventMouse:
+			last_mouse_event = event
+   
+
+# 2D, 3D, Script, Game, or AssetLib
+var tab_open: String = "2D"
+func _main_screen_changed(tab_name: String):
+	tab_open = tab_name
+
+
+# no cooldown for writes
+func _scene_saved(file_path: String):
+	if last_mouse_event == null:
+		return
+
+	var snapshot = get_building_data(last_mouse_event)
+
+	if snapshot == null:
+		return
+
+	send_heartbeat(snapshot.file_path, "building",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, true)
+ 
+func _resource_saved(resource: Resource):
+	if not resource is GDScript:
+		return
+
+	var snapshot = get_coding_data(resource)
+ 
+	if snapshot == null:
+		return
+
+	send_heartbeat(snapshot.file_path, "coding",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, true)
+
 
 func setup_plugin() -> void:
 	"""Setup Wakatime plugin, download dependencies if needed, initialize menu"""
 	Utils.plugin_print("Setting up %s" % get_user_agent())
 	check_dependencies()
-	
+
+	main_screen_changed.connect(_main_screen_changed)
+	scene_saved.connect(_scene_saved)
+	resource_saved.connect(_resource_saved)
+	 
 	# Grab API key if needed
 	var api_key = get_api_key()
 	if api_key == null:
@@ -125,11 +189,6 @@ func setup_plugin() -> void:
 	
 	counter_instance = Counter.instantiate()
 	add_control_to_bottom_panel(counter_instance, current_time)
-	
-	# Connect code editor signals
-	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
-	script_editor.call_deferred("connect", "editor_script_changed", Callable(self, 
-		"_on_script_changed"))
 
 func _disable_plugin() -> void:
 	"""Cleanup after disabling plugin"""
@@ -139,79 +198,14 @@ func _disable_plugin() -> void:
 	
 	remove_control_from_bottom_panel(counter_instance)
 	
-	# Disconnect script editor tracking
-	var script_editor: ScriptEditor = get_editor_interface().get_script_editor()
-	if script_editor.is_connected("editor_script_changed", Callable(self, 
-		"_on_script_changed")):
-		script_editor.disconnect("editor_script_changed", Callable(self, 
-			"_on_script_changed"))
-		
-func _on_script_changed(file) -> void:
-	"""Handle changing scripts"""
-	if file:
-		last_file_path = ProjectSettings.globalize_path(file.resource_path)
-	handle_activity(last_file_path)
-	
-#func _unhandled_key_input(event: InputEvent) -> void:
-#	"""Handle key inputs"""
-#	var file = get_current_file()
-#	handle_activity(file)
-	
-func _save_external_data() -> void:
-	"""Handle saving files"""
-	var file = get_current_file()
-	if file:
-		handle_activity(ProjectSettings.globalize_path(file.resource_path), true)
-	
-func _get_current_scene():
-	"""Get currently used scene"""
-	if EditorInterface.get_edited_scene_root():
-		var file = EditorInterface.get_edited_scene_root()
-		if file:
-			return ProjectSettings.globalize_path(file.scene_file_path)
-	else:
-		var file = get_current_file()
-		if file:
-			return ProjectSettings.globalize_path(file.resource_path)
-			
-	return null
-	
-func _on_scene_modified():
-	"""Send heartbeat when scene is modified"""
-	var current_scene = get_tree().current_scene
-	if current_scene:
-		handle_activity_scene(_get_current_scene())
-	
-func get_current_file():
-	"""Get currently used script file"""
-	var file = get_editor_interface().get_script_editor().get_current_script()
-	if file:
-		last_file_path = ProjectSettings.globalize_path(file.resource_path)
-	
-	return get_editor_interface().get_script_editor().get_current_script()
-		
-func handle_activity(file, is_write: bool = false) -> void:
-	"""Handle user's activity"""
-	# If file that has activity in or wakatime cli doesn't exist, return
-	if not file or not Utils.wakatime_cli_exists(get_waka_cli()):
-		return
-	
-	# If user is saving file or has changed path, or enough time has passed for a heartbeat - send it
-	#var filepath = ProjectSettings.globalize_path(file.resource_path)
-	if is_write or file != last_heartbeat.file_path or enough_time_passed():
-		send_heartbeat(file, is_write)
-		
-func handle_activity_scene(file, is_write: bool = false, changed_file: bool = false) -> void:
-	"""Handle activity in scenes"""
-	if not file or not Utils.wakatime_cli_exists(get_waka_cli()):
-		return
-		
-	if is_write or changed_file or enough_time_passed():
-		scene_mode = true
-		send_heartbeat(file, is_write)
-		
-func send_heartbeat(filepath: String, is_write: bool) -> void:
+
+func send_heartbeat(filepath: String, catagory: String, line_num: int, cursor_pos: int, lines: int, is_write: bool) -> void:
 	"""Send Wakatimde heartbeat for the specified file"""
+
+	if not Utils.wakatime_cli_exists(get_waka_cli()):
+		print("Wakatime not installed!")
+		return
+
 	# Check Wakatime API key
 	var api_key = get_api_key()
 	if api_key == null:
@@ -224,42 +218,27 @@ func send_heartbeat(filepath: String, is_write: bool) -> void:
 				initialize it with:\n[settings]\napi_key={your_key}")
 		return
 		
-	# Make sure not to trigger additional heartbeats cause of events from scenes
-	var file = filepath
-	if scene_mode:
-		file = last_file_path
-		#print("\n-------SCENE MODE--------\n")
-		
-	# Create heartbeat
-	var heartbeat = HeartBeat.new(file, Time.get_unix_time_from_system(), is_write)
-	
-	# Current text editor
-	var text_editor = _find_active_script_editor()
-	var cursor_pos = _get_cursor_pos(text_editor)
-	
 	# Append all informations as Wakatime CLI arguments
 	var cmd: Array[Variant] = ["--entity", filepath, "--key", api_key]
 	if is_write:
 		cmd.append("--write")
 	cmd.append_array(["--alternate-project", ProjectSettings.get("application/config/name")])
-	cmd.append_array(["--time", str(heartbeat.time)])
-	cmd.append_array(["--lineno", str(cursor_pos.line)])
-	cmd.append_array(["--cursorpos", str(cursor_pos.column)])
+	cmd.append_array(["--time", str(Time.get_unix_time_from_system())])
+	cmd.append_array(["--lineno", str(line_num)])
+	cmd.append_array(["--cursorpos", str(cursor_pos)])
+	cmd.append_array(["--lines-in-file", str(lines)])
 	cmd.append_array(["--plugin", get_user_agent()])
 	
-	cmd.append_array(["--alternate-language", "Scene"])
-	if scene_mode:
-		cmd.append_array(["--category", "building"])
-	else:
-		cmd.append(["--category", "coding"])	
+	cmd.append_array(["--category", catagory])
 	
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
+
+	print(cmd)
 	
 	scene_mode = false
 	
 	WorkerThreadPool.add_task(cmd_callable)
-	last_heartbeat = heartbeat
 	
 func _find_active_script_editor():
 	"""Return currently used script editor"""
@@ -285,20 +264,6 @@ func _find_code_edit_recursive(node: Node) -> CodeEdit:
 			return editor
 	return null
 	
-func _get_cursor_pos(text_editor) -> Dictionary:
-	"""Get cursor editor from the given text editor"""
-	if text_editor:
-		
-		return {
-			"line": text_editor.get_caret_line() + 1,
-			"column": text_editor.get_caret_column() + 1
-		}
-		
-	return {
-		"line": 0,
-		"column": 0
-	}
-	
 func _handle_heartbeat(cmd_arguments) -> void:
 	"""Handle sending the heartbeat"""
 	# Get Wakatime CLI and try to send a heartbeat
@@ -317,10 +282,6 @@ func _handle_heartbeat(cmd_arguments) -> void:
 		else:
 			Utils.plugin_print("Heartbeat sent: %s" % output)
 			
-func enough_time_passed():
-	"""Check if enough time has passed for another heartbeat"""
-	return Time.get_unix_time_from_system() - last_heartbeat.time >= HeartBeat.FILE_MODIFIED_DELAY
-	
 func update_today_time(wakatime_cli) -> void:
 	"""Update today's time in menu"""
 	var output: Array[Variant] = []
@@ -329,7 +290,7 @@ func update_today_time(wakatime_cli) -> void:
 	
 	# Convert it and combine different categories into
 	if exit_code == 0:
-		current_time = convert_time(output[0])
+		current_time = output[0]
 	else:
 		current_time = "Wakatime"
 	#print(current_time)
@@ -344,27 +305,6 @@ func _update_panel_label(label: String, content: String):
 		remove_control_from_bottom_panel(counter_instance)
 		add_control_to_bottom_panel(counter_instance, label)
 		
-func convert_time(complex_time: String):
-	"""Convert time from complex format into basic one, combine times"""
-	return complex_time
-	
-	"""
-	# Split times into categories
-	var time_categories = complex_time.split(', ')
-	for category in time_categories:
-		# Split time into parts, get first and third part (hours and minutes)
-		var time_parts = category.split(' ')
-		if time_parts.size() >= 3:
-			hours += int(time_parts[0])
-			minutes += int(time_parts[2])
-	
-	# Wrap minutes into hours if needed
-	while minutes >= 60:
-		minutes -= 60
-		hours += 1
-
-	return str(hours) + " hrs, " + str(minutes) + " mins"
-	"""
 
 #------------------------------- FILE FUNCTIONS -------------------------------
 func open_config() -> void:
@@ -604,8 +544,9 @@ func _on_save_key(prompt: PopupPanel) -> void:
 func get_user_agent() -> String:
 	"""Get user agent identifier"""
 	var os_name = OS.get_name().to_lower()
-	return "godot/%s godot-wakatime/%s" % [
+	return "godot/%s %s/%s" % [
 		get_engine_version(), 
+		_get_plugin_name(),
 		_get_plugin_version()
 	]
 	
@@ -614,12 +555,11 @@ func _get_plugin_name() -> String:
 	return "Godot_Super-Wakatime"
 	
 func _get_plugin_version() -> String:
-	"""Get plugin version"""
-	return "1.0.0"
-	
-func _get_editor_name() -> String:
-	"""Get name of the editor"""
-	return "Godot%s" % get_engine_version()
+	"""Get version of the plugin"""
+	if get_plugin_version() == "":
+		return "unknown"
+
+	return get_plugin_version()
 	
 func get_engine_version() -> String:
 	"""Get verison of currently used engine"""
