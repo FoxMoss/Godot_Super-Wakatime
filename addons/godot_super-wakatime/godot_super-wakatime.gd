@@ -33,14 +33,9 @@ var system_platform: String = Utils.set_platform()[0]
 var system_architecture: String = Utils.set_platform()[1]
 
 var debug: bool = false
-var last_scene_path: String = ''
-var last_file_path: String = ''
-var last_time: int = 0
-var previous_state: String = ''
 
 # parity with kate-wakatime
 const LOG_INTERVAL: int = 120000
-var scene_mode: bool = false
 
 var key_get_tries: int = 0
 var counter_instance: Node
@@ -83,19 +78,23 @@ func get_coding_data(file: Script = null) ->  DataSnapshot:
 
 	return snapshot
 
-func get_building_data(mouse_event: InputEventMouse) -> DataSnapshot:
+func get_building_data(mouse_event: InputEventMouse, file_path: String = "") -> DataSnapshot:
+	"""Generate"""
 	var snapshot = DataSnapshot.new()
-	var file = EditorInterface.get_edited_scene_root().scene_file_path
+	if file_path == "":
+		var file = EditorInterface.get_edited_scene_root().scene_file_path
 
-	if not file:
-		return null
+		if not file:
+			return null
 
-	snapshot.file_path = ProjectSettings.globalize_path(file)
+		snapshot.file_path = ProjectSettings.globalize_path(file)
+	else:
+		snapshot.file_path = file_path
 
 	snapshot.line_no = int(roundf(mouse_event.position.x))
 	snapshot.cursor_pos = int(roundf(mouse_event.position.y))
 
-# no line numbers in a screen lol
+	# no line numbers in a screen lol
 	snapshot.lines = 0
 	return snapshot
 
@@ -141,11 +140,13 @@ func _input(event: InputEvent) -> void:
 # 2D, 3D, Script, Game, or AssetLib
 var tab_open: String = "2D"
 func _main_screen_changed(tab_name: String):
+	"""Update the curent tab so we can know where our input events are going to"""
 	tab_open = tab_name
 
 
 # no cooldown for writes
 func _scene_saved(file_path: String):
+	"""Handle heartbeats to be sent on scene save"""
 	if last_mouse_event == null:
 		return
 
@@ -157,6 +158,7 @@ func _scene_saved(file_path: String):
 	send_heartbeat(snapshot.file_path, "building",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, true)
  
 func _resource_saved(resource: Resource):
+	"""Handle heartbeats to be sent on file save"""
 	if not resource is GDScript:
 		return
 
@@ -197,6 +199,10 @@ func _disable_plugin() -> void:
 	remove_tool_menu_item(CONFIG_MENU_ITEM)
 	
 	remove_control_from_bottom_panel(counter_instance)
+
+	main_screen_changed.disconnect(_main_screen_changed)
+	scene_saved.disconnect(_scene_saved)
+	resource_saved.disconnect(_resource_saved)
 	
 
 func send_heartbeat(filepath: String, catagory: String, line_num: int, cursor_pos: int, lines: int, is_write: bool) -> void:
@@ -234,23 +240,8 @@ func send_heartbeat(filepath: String, catagory: String, line_num: int, cursor_po
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
 
-	print(cmd)
-	
-	scene_mode = false
-	
 	WorkerThreadPool.add_task(cmd_callable)
 	
-func _find_active_script_editor():
-	"""Return currently used script editor"""
-	# Get script editor
-	var script_editor = get_editor_interface().get_script_editor()
-	var current_editor = script_editor.get_current_editor()
-	
-	# Try to find code editor from it
-	if current_editor:
-		return _find_code_edit_recursive(script_editor.get_current_editor())
-	return null
-
 func _find_code_edit_recursive(node: Node) -> CodeEdit:
 	"""Find recursively code editor in a node"""
 	# If node is already a code editor, return it
@@ -549,7 +540,7 @@ func get_user_agent() -> String:
 		_get_plugin_name(),
 		_get_plugin_version()
 	]
-	
+	 
 func _get_plugin_name() -> String:
 	"""Get name of the plugin"""
 	return "Godot_Super-Wakatime"
