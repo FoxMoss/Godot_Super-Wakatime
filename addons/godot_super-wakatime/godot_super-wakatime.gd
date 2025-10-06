@@ -82,6 +82,8 @@ func get_building_data(mouse_event: InputEventMouse, file_path: String = "") -> 
 	"""Generate"""
 	var snapshot = DataSnapshot.new()
 	if file_path == "":
+		if EditorInterface.get_edited_scene_root() == null:
+			return null
 		var file = EditorInterface.get_edited_scene_root().scene_file_path
 
 		if not file:
@@ -101,6 +103,7 @@ func get_building_data(mouse_event: InputEventMouse, file_path: String = "") -> 
 	
 var last_tick_frame: int = 0
 var last_mouse_event: InputEventMouse
+var moved_on_edit: bool = false
 func _input(event: InputEvent) -> void:
 	"""Handle all input events"""
 
@@ -135,6 +138,7 @@ func _input(event: InputEvent) -> void:
 	if tab_open == "2D" || tab_open == "3D":
 		if event is InputEventMouse:
 			last_mouse_event = event
+			moved_on_edit = true
    
 
 # 2D, 3D, Script, Game, or AssetLib
@@ -149,6 +153,11 @@ func _scene_saved(file_path: String):
 	"""Handle heartbeats to be sent on scene save"""
 	if last_mouse_event == null:
 		return
+
+	if !moved_on_edit:
+		return
+
+	moved_on_edit = false
 
 	var snapshot = get_building_data(last_mouse_event)
 
@@ -199,10 +208,6 @@ func _disable_plugin() -> void:
 	remove_tool_menu_item(CONFIG_MENU_ITEM)
 	
 	remove_control_from_bottom_panel(counter_instance)
-
-	main_screen_changed.disconnect(_main_screen_changed)
-	scene_saved.disconnect(_scene_saved)
-	resource_saved.disconnect(_resource_saved)
 	
 
 func send_heartbeat(filepath: String, catagory: String, line_num: int, cursor_pos: int, lines: int, is_write: bool) -> void:
