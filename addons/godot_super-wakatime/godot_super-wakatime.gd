@@ -108,7 +108,6 @@ func _input(event: InputEvent) -> void:
 	"""Handle all input events"""
 
 	if Time.get_ticks_msec() - last_tick_frame > LOG_INTERVAL:
-		last_tick_frame = Time.get_ticks_msec()
 
 		if tab_open == "Script":
 			if event is InputEventKey:
@@ -125,6 +124,8 @@ func _input(event: InputEvent) -> void:
 
 				send_heartbeat(snapshot.file_path, "coding",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, false)
 
+				last_tick_frame = Time.get_ticks_msec()
+
 		elif tab_open == "2D" || tab_open == "3D":
 			if event is InputEventMouse: # we dont really care if people are typing in node editor
 				var snapshot = get_building_data(event)
@@ -133,6 +134,8 @@ func _input(event: InputEvent) -> void:
 					return
 
 				send_heartbeat(snapshot.file_path, "building",  snapshot.line_no, snapshot.cursor_pos, snapshot.lines, false)
+
+				last_tick_frame = Time.get_ticks_msec()
  
 	# store the mouse data for scene saved
 	if tab_open == "2D" || tab_open == "3D":
@@ -241,7 +244,7 @@ func send_heartbeat(filepath: String, catagory: String, line_num: int, cursor_po
 	cmd.append_array(["--plugin", get_user_agent()])
 	
 	cmd.append_array(["--category", catagory])
-	
+
 	# Send heartbeat using Wakatime CLI
 	var cmd_callable = Callable(self, "_handle_heartbeat").bind(cmd)
 
