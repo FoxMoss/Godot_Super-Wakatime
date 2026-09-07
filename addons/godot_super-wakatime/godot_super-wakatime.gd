@@ -261,22 +261,6 @@ func _find_code_edit_recursive(node: Node) -> CodeEdit:
 		if editor:
 			return editor
 	return null
-	
-func update_today_time(cli_location) -> void:
-	"""Update today's time in menu"""
-	var output: Array[Variant] = []
-
-	# I would use --plugin "godot/4.6.2 Godot_Super-Wakatime/2.0.1" but it doesn't seem to do anything with --today
-	# Get today's time from Wakatime CLI
-	var exit_code: int = OS.execute(cli_location, ["--today"], output, true)
-	
-	# Convert it and combine different categories into
-	if exit_code == 0:
-		current_time = output[0]
-	else:
-		current_time = "Wakatime"
-	#print(current_time)
-	call_deferred("_update_panel_label", current_time, output[0])
 
 func _handle_heartbeat(cmd_arguments) -> void:
 	"""Handle sending the heartbeat"""
@@ -296,6 +280,21 @@ func _handle_heartbeat(cmd_arguments) -> void:
 		else:
 			Utils.plugin_print("Heartbeat sent: %s" % output)
 			
+func update_today_time(cli_location) -> void:
+	"""Update today's time in menu"""
+	var output: Array[Variant] = []
+
+	# I would use --plugin "godot/4.6.2 Godot_Super-Wakatime/2.0.1" but it doesn't seem to do anything with --today
+	# Get today's time from Wakatime CLI
+	var exit_code: int = OS.execute(cli_location, ["--today"], output, true)
+	
+	# Convert it and combine different categories into
+	if exit_code == 0:
+		current_time = output[0]
+	else:
+		current_time = "Wakatime"
+	#print(current_time)
+	call_deferred("_update_panel_label", current_time, output[0])
 	
 func _update_panel_label(label: String, content: String):
 	"""Update bottom panel name that shows time"""
